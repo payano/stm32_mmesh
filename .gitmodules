@@ -1,3 +1,6 @@
 [submodule "Src/mesh"]
 	path = Src/mesh
 	url = https://github.com/payano/mMesh.git
+[submodule "Src/mMesh"]
+	path = Src/mMesh
+	url = https://github.com/payano/mMesh.git

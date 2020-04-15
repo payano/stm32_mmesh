@@ -20,17 +20,18 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "usb_device.h"
 
 #include "stm32f1xx_hal.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-#include "Nrf24.h"
-#include "Mesh.h"
+#include "DataTypes.h"
+#include "RF24.h"
 #include "GPIOStm32f103.h"
 #include "STM32Syscalls.h"
 #include "SPIStm32f103.h"
+//#include "STM32Syscalls.h"
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,8 +51,6 @@
 /* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi1;
 
-TIM_HandleTypeDef htim1;
-
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -60,7 +59,6 @@ TIM_HandleTypeDef htim1;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
-static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -75,11 +73,24 @@ static void MX_TIM1_Init(void);
  * @retval int
  */
 
-network::NetworkInterface *radio;
-mesh::Mesh *mMesh;
+
 gpio::GPIOInterface *mesh_gpio;
 syscalls::SyscallsInterface *mesh_syscalls;
 spi::SPIInterface *mesh_spi;
+network::RF24 *radio;
+
+/****************** User Config ***************************/
+/***      Set this radio as radio number 0 or 1         ***/
+bool radioNumber = 0;
+
+/* Hardware configuration: Set up nRF24L01 radio on SPI bus plus pins 7 & 8 */
+/**********************************************************/
+
+uint8_t addresses[][6] = {"1Node","2Node"};
+
+// Used to control whether this node is sending or receiving
+bool role = radioNumber;
+
 
 int main(void)
 {
@@ -106,8 +117,11 @@ int main(void)
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
 	MX_SPI1_Init();
-	MX_TIM1_Init();
-	MX_USB_DEVICE_Init();
+
+	int rsp_time = 0;
+	if(rsp_time){
+		rsp_time = 2;
+	}
 
 	struct gpio::gpio_pins pins;
 	pins.ce_port = RF24_CE_GPIO_Port;
@@ -120,38 +134,116 @@ int main(void)
 	mesh_gpio = new gpio::GPIOStm32f103();
 	mesh_gpio->init_pins(&pins);
 	//
-	mesh_syscalls = new syscalls::STM32Syscalls(&htim1);
+	mesh_syscalls = new syscalls::STM32Syscalls();
 	mesh_syscalls->set_cpu_speed(syscalls::SPEED_72MHZ);
 	mesh_syscalls->init();
 
-	radio = new network::Nrf24(mesh_gpio, mesh_syscalls, mesh_spi);
-	mMesh = new mesh::Mesh(radio, mesh_syscalls);
-	mMesh->setMaster();
+	radio = new network::RF24(mesh_gpio, mesh_syscalls, mesh_spi);
+
+	  radio->begin();
+
+	  // Set the PA Level low to prevent power supply related issues since this is a
+	 // getting_started sketch, and the likelihood of close proximity of the devices. RF24_PA_MAX is default.
+	  radio->setPALevel(network::RF24_PA_LOW);
+
+	  // Open a writing and reading pipe on each radio, with opposite addresses
+	  if(radioNumber){
+	    radio->openWritingPipe(addresses[1]);
+	    radio->openReadingPipe(1,addresses[0]);
+	  }else{
+	    radio->openWritingPipe(addresses[0]);
+	    radio->openReadingPipe(1,addresses[1]);
+	  }
+
+	  // Start the radio listening for data
+	  radio->startListening();
 
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
-
-//	HAL_TIM_Base_Start(&htim1);
+	  while(!radio->isChipConnected())
+	  {
+		  HAL_Delay(1);
+	  }
 
 	while (1)
 	{
+		HAL_Delay(100);
+		HAL_GPIO_TogglePin(BLINKY_LED_GPIO_Port, BLINKY_LED_Pin);
 
-//		if(mesh_syscalls->timer_started()) {
-//			HAL_GPIO_TogglePin(LED_PIN_GPIO_Port, LED_PIN_Pin);
-//		} else {
-//			mesh_syscalls->msleep(500);
-//			mesh_syscalls->start_timer(10000);
-//		}
-//		mesh_syscalls->msleep(100);
-		radio->init();
-//		mMesh->run();
-		HAL_GPIO_TogglePin(LED_PIN_GPIO_Port, LED_PIN_Pin);
-//		mMesh->run();
-		mesh_syscalls->msleep(200);
-		/* USER CODE END WHILE */
 
-		/* USER CODE BEGIN 3 */
+		/****************** Ping Out Role ***************************/
+		if (role == 1)  {
+
+			radio->stopListening();                                    // First, stop listening so we can talk.
+
+
+//			Serial.println(F("Now sending"));
+
+			unsigned long start_time = 123;                             // Take the time, and send it.  This will block until complete
+			if (!radio->write( &start_time, sizeof(unsigned long) )){
+//				Serial.println(F("failed"));
+			}
+
+			radio->startListening();                                    // Now, continue listening
+
+			unsigned long started_waiting_at = 0;               // Set up a timeout period, get the current microseconds
+			bool timeout = false;                                   // Set up a variable to indicate if a response was received or not
+
+			while ( ! radio->available() ){                             // While nothing is received
+				if (started_waiting_at > 2000 ){            // If waited longer than 200ms, indicate timeout and exit while loop
+					timeout = true;
+					break;
+				}
+				started_waiting_at++;
+				HAL_Delay(1);
+			}
+
+			if ( timeout ){                                             // Describe the results
+//				Serial.println(F("Failed, response timed out."));
+			}else{
+				unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
+				radio->read( &got_time, sizeof(unsigned long) );
+				unsigned long end_time = 456;
+
+				// Spew it
+//				Serial.print(F("Sent "));
+//				Serial.print(start_time);
+//				Serial.print(F(", Got response "));
+//				Serial.print(got_time);
+//				Serial.print(F(", Round-trip delay "));
+//				Serial.print(end_time-start_time);
+//				Serial.println(F(" microseconds"));
+			}
+
+			// Try again 1s later
+			HAL_Delay(1000);
+		}
+
+
+
+		/****************** Pong Back Role ***************************/
+
+		if ( role == 0 )
+		{
+			unsigned long got_time;
+
+			if( radio->available()){
+				// Variable for the received timestamp
+				while (radio->available()) {                                   // While there is data ready
+					radio->read( &got_time, sizeof(unsigned long) );             // Get the payload
+					HAL_Delay(1);
+				}
+
+				radio->stopListening();                                        // First, stop listening so we can talk
+				radio->write( &got_time, sizeof(unsigned long) );              // Send the final one back.
+				radio->startListening();                                       // Now, resume listening so we catch the next packets.
+//				Serial.print(F("Sent response "));
+//				Serial.println(got_time);
+			}
+		}
+
+
+
+
 	}
 	/* USER CODE END 3 */
 }
@@ -164,7 +256,6 @@ void SystemClock_Config(void)
 {
 	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
 	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-	RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
 	/** Initializes the CPU, AHB and APB busses clocks
 	 */
@@ -189,12 +280,6 @@ void SystemClock_Config(void)
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB;
-	PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL_DIV1_5;
-	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
 	{
 		Error_Handler();
 	}
@@ -223,7 +308,7 @@ static void MX_SPI1_Init(void)
 	hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
 	hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
 	hspi1.Init.NSS = SPI_NSS_SOFT;
-	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+	hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
 	hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
 	hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
 	hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -239,105 +324,45 @@ static void MX_SPI1_Init(void)
 }
 
 /**
- * @brief TIM1 Initialization Function
- * @param None
- * @retval None
- */
-static void MX_TIM1_Init(void)
-{
-
-	/* USER CODE BEGIN TIM1_Init 0 */
-
-	/* USER CODE END TIM1_Init 0 */
-
-	TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-	TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-	/* USER CODE BEGIN TIM1_Init 1 */
-
-	/* USER CODE END TIM1_Init 1 */
-	htim1.Instance = TIM1;
-	htim1.Init.Prescaler = 0xffff;
-	htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-	htim1.Init.Period = 0x0fff;
-	htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-	htim1.Init.RepetitionCounter = 0;
-	htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-	if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-	if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	if (HAL_TIM_OnePulse_Init(&htim1, TIM_OPMODE_SINGLE) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-	sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-	if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	/* USER CODE BEGIN TIM1_Init 2 */
-
-	/* USER CODE END TIM1_Init 2 */
-
-}
-
-/**
  * @brief GPIO Initialization Function
  * @param None
  * @retval None
  */
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
+	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+	/* GPIO Ports Clock Enable */
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	__HAL_RCC_GPIOD_CLK_ENABLE();
+	__HAL_RCC_GPIOA_CLK_ENABLE();
+	__HAL_RCC_GPIOB_CLK_ENABLE();
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LED_PIN_GPIO_Port, LED_PIN_Pin, GPIO_PIN_RESET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(BLINKY_LED_GPIO_Port, BLINKY_LED_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(RF24_CSN_GPIO_Port, RF24_CSN_Pin, GPIO_PIN_SET);
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOB, RF24_CE_Pin|RF24_CSN_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : LED_PIN_Pin */
-  GPIO_InitStruct.Pin = LED_PIN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LED_PIN_GPIO_Port, &GPIO_InitStruct);
+	/*Configure GPIO pin : BLINKY_LED_Pin */
+	GPIO_InitStruct.Pin = BLINKY_LED_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(BLINKY_LED_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RF24_IRQ_Pin */
-  GPIO_InitStruct.Pin = RF24_IRQ_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(RF24_IRQ_GPIO_Port, &GPIO_InitStruct);
+	/*Configure GPIO pin : RF24_IRQ_Pin */
+	GPIO_InitStruct.Pin = RF24_IRQ_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	HAL_GPIO_Init(RF24_IRQ_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RF24_CE_Pin */
-  GPIO_InitStruct.Pin = RF24_CE_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(RF24_CE_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : RF24_CSN_Pin */
-  GPIO_InitStruct.Pin = RF24_CSN_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(RF24_CSN_GPIO_Port, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+	/*Configure GPIO pins : RF24_CE_Pin RF24_CSN_Pin */
+	GPIO_InitStruct.Pin = RF24_CE_Pin|RF24_CSN_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+	GPIO_InitStruct.Pull = GPIO_PULLUP;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 

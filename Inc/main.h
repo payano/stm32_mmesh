@@ -58,11 +58,10 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define LED_PIN_Pin GPIO_PIN_13
-#define LED_PIN_GPIO_Port GPIOC
+#define BLINKY_LED_Pin GPIO_PIN_13
+#define BLINKY_LED_GPIO_Port GPIOC
 #define RF24_IRQ_Pin GPIO_PIN_0
 #define RF24_IRQ_GPIO_Port GPIOB
-#define RF24_IRQ_EXTI_IRQn EXTI0_IRQn
 #define RF24_CE_Pin GPIO_PIN_1
 #define RF24_CE_GPIO_Port GPIOB
 #define RF24_CSN_Pin GPIO_PIN_10
