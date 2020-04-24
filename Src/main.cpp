@@ -120,6 +120,7 @@ int main(void)
 	/* Initialize all configured peripherals */
 	MX_GPIO_Init();
 	MX_SPI1_Init();
+	MX_TIM1_Init();
 
 	int rsp_time = 0;
 	if(rsp_time){
