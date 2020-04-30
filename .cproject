@@ -50,6 +50,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/network}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/mesh}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/netAlgorithm}&quot;" />
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/debug}&quot;" />
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1939685009" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="USE_HAL_DRIVER" />
@@ -77,6 +78,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/network}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/mesh}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/netAlgorithm}&quot;" />
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/debug}&quot;" />
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.1195239156" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="USE_HAL_DRIVER" />
@@ -120,6 +122,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/network}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/mesh}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/netAlgorithm}&quot;" />
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/debug}&quot;" />
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.851181419" superClass="cdt.managedbuild.tool.gnu.assembler.input" />
 								<inputType id="fr.ac6.managedbuild.tool.gnu.cross.assembler.input.80125856" superClass="fr.ac6.managedbuild.tool.gnu.cross.assembler.input" />
@@ -188,6 +191,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/network}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/mesh}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/netAlgorithm}&quot;" />
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/debug}&quot;" />
 								</option>
 								<option id="gnu.c.compiler.option.preprocessor.def.symbols.1939685009" name="Defined symbols (-D)" superClass="gnu.c.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="USE_HAL_DRIVER" />
@@ -218,6 +222,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/network}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/mesh}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/netAlgorithm}&quot;" />
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/debug}&quot;" />
 								</option>
 								<option id="gnu.cpp.compiler.option.preprocessor.def.symbols.225968323" name="Defined symbols (-D)" superClass="gnu.cpp.compiler.option.preprocessor.def.symbols" useByScannerDiscovery="false" />
 								<option id="fr.ac6.managedbuild.gnu.cpp.compiler.option.misc.other.906441818" name="Other flags" superClass="fr.ac6.managedbuild.gnu.cpp.compiler.option.misc.other" useByScannerDiscovery="false" value="-fmessage-length=0" valueType="string" />
@@ -266,6 +271,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/network}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/mesh}&quot;" />
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/netAlgorithm}&quot;" />
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/rf24/Src/mMesh/src/debug}&quot;" />
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.assembler.input.851181419" superClass="cdt.managedbuild.tool.gnu.assembler.input" />
 								<inputType id="fr.ac6.managedbuild.tool.gnu.cross.assembler.input.80125856" superClass="fr.ac6.managedbuild.tool.gnu.cross.assembler.input" />
