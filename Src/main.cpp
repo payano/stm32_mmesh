@@ -150,138 +150,138 @@ int main(void)
 
 	mesh_spi = new spi::SPIStm32f103(&hspi1);
 	debug = new debugger::Debug(&huart2);
-//	//
-//	mesh_gpio = new gpio::GPIOStm32f103();
-//	mesh_gpio->init_pins(&pins);
-//	//
-//	mesh_syscalls = new syscalls::STM32Syscalls(&htim1);
-//	mesh_syscalls->set_cpu_speed(syscalls::SPEED_72MHZ);
-//	mesh_syscalls->init();
-//
-//	radio = new network::RF24(mesh_gpio, mesh_syscalls, mesh_spi);
-//
-//	  radio->begin();
-//
-//	  // Set the PA Level low to prevent power supply related issues since this is a
-//	 // getting_started sketch, and the likelihood of close proximity of the devices. RF24_PA_MAX is default.
-//	  radio->setPALevel(network::RF24_PA_LOW);
-//
-//	  // Open a writing and reading pipe on each radio, with opposite addresses
-//	  if(radioNumber){
-//	    radio->openWritingPipe(addresses[1]);
-//	    radio->openReadingPipe(1,addresses[0]);
-//	  }else{
-//	    radio->openWritingPipe(addresses[0]);
-//	    radio->openReadingPipe(1,addresses[1]);
-//	  }
-//
-//	  // Start the radio listening for data
-//	  radio->startListening();
-//
-//
-//	  while(!radio->isChipConnected())
-//	  {
-//		  HAL_Delay(1);
-//	  }
+	//
+	mesh_gpio = new gpio::GPIOStm32f103();
+	mesh_gpio->init_pins(&pins);
+	//
+	mesh_syscalls = new syscalls::STM32Syscalls(&htim1);
+	mesh_syscalls->set_cpu_speed(syscalls::SPEED_72MHZ);
+	mesh_syscalls->init();
 
-	  uint8_t test[] = "UART LIRAR!!!!\n\r";
-//	  char uart_msg[] = "THIS IS WORKING\n\r";
+	radio = new network::RF24(mesh_gpio, mesh_syscalls, mesh_spi);
+
+	radio->begin();
+
+	// Set the PA Level low to prevent power supply related issues since this is a
+	// getting_started sketch, and the likelihood of close proximity of the devices. RF24_PA_MAX is default.
+	radio->setPALevel(network::RF24_PA_LOW);
+
+	// Open a writing and reading pipe on each radio, with opposite addresses
+	if(radioNumber){
+		radio->openWritingPipe(addresses[1]);
+		radio->openReadingPipe(1,addresses[0]);
+	}else{
+		radio->openWritingPipe(addresses[0]);
+		radio->openReadingPipe(1,addresses[1]);
+	}
+
+	// Start the radio listening for data
+	radio->startListening();
+
+
+	while(!radio->isChipConnected())
+	{
+		HAL_Delay(1);
+	}
+
+	char MSG[5];
 	while (1)
 	{
-//		HAL_StatusTypeDef HAL_USART_Transmit(USART_HandleTypeDef *husart, uint8_t *pTxData, uint16_t Size, uint32_t Timeout)
-
-
-
-
-
-
-
-		debug->debug("%s", "FIRST DEBUG OUTPUT");
-		debug->warn("%s", "FIRST DEBUG OUTPUT");
-		debug->info("%s", "FIRST DEBUG OUTPUT");
-		HAL_Delay(100);
+		HAL_Delay(1000);
 		HAL_GPIO_TogglePin(BLINKY_LED_GPIO_Port, BLINKY_LED_Pin);
 
+		if(role)
+			debug->debug("%s", "STARTING CLIENT");
+		else
+			debug->debug("%s", "STARTING SERVER");
 
 
 
 
-		//		if(status)
-//		HAL_UART_Transmit(&huart2, (uint8_t*)test, string_len(test), 100);
+		/****************** Ping Out Role ***************************/
+		if (role == 1)  {
+			debug->debug("%s", "PING OUT");
+
+			radio->stopListening();                                    // First, stop listening so we can talk.
 
 
-//
-//
-//		/****************** Ping Out Role ***************************/
-//		if (role == 1)  {
-//
-//			radio->stopListening();                                    // First, stop listening so we can talk.
-//
-//
-////			Serial.println(F("Now sending"));
-//
-//			unsigned long start_time = 123;                             // Take the time, and send it.  This will block until complete
+			debug->debug("%s", "Now sending.");
+
+			unsigned long start_time = 123;                             // Take the time, and send it.  This will block until complete
+			copy_data(MSG, "SEND", sizeof(MSG));
 //			if (!radio->write( &start_time, sizeof(unsigned long) )){
-////				Serial.println(F("failed"));
-//			}
-//
-//			radio->startListening();                                    // Now, continue listening
-//
-//			unsigned long started_waiting_at = 0;               // Set up a timeout period, get the current microseconds
-//			bool timeout = false;                                   // Set up a variable to indicate if a response was received or not
-//
-//			while ( ! radio->available() ){                             // While nothing is received
-//				if (started_waiting_at > 2000 ){            // If waited longer than 200ms, indicate timeout and exit while loop
-//					timeout = true;
-//					break;
-//				}
-//				started_waiting_at++;
-//				HAL_Delay(1);
-//			}
-//
-//			if ( timeout ){                                             // Describe the results
-////				Serial.println(F("Failed, response timed out."));
-//			}else{
-//				unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
+			if (!radio->write(MSG, sizeof(MSG))){
+				debug->debug("%s", "failed.");
+			}
+
+			radio->startListening();                                    // Now, continue listening
+
+			unsigned long started_waiting_at = 0;               // Set up a timeout period, get the current microseconds
+			bool timeout = false;                                   // Set up a variable to indicate if a response was received or not
+
+			while ( ! radio->available() ){                             // While nothing is received
+				if (started_waiting_at > 2000 ){            // If waited longer than 200ms, indicate timeout and exit while loop
+					timeout = true;
+					break;
+				}
+				started_waiting_at++;
+				HAL_Delay(1);
+			}
+
+			if ( timeout ){                                             // Describe the results
+				debug->debug("%s", "Failed, response timed out.");
+			}else{
+				unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
 //				radio->read( &got_time, sizeof(unsigned long) );
-//				unsigned long end_time = 456;
-//
-//				// Spew it
-////				Serial.print(F("Sent "));
-////				Serial.print(start_time);
-////				Serial.print(F(", Got response "));
-////				Serial.print(got_time);
-////				Serial.print(F(", Round-trip delay "));
-////				Serial.print(end_time-start_time);
-////				Serial.println(F(" microseconds"));
-//			}
-//
-//			// Try again 1s later
-//			HAL_Delay(1000);
-//		}
-//
-//
-//
-//		/****************** Pong Back Role ***************************/
-//
-//		if ( role == 0 )
-//		{
-//			unsigned long got_time;
-//
-//			if( radio->available()){
-//				// Variable for the received timestamp
-//				while (radio->available()) {                                   // While there is data ready
+				radio->read(MSG, sizeof(MSG) );
+				unsigned long end_time = 456;
+				int printme = (int)got_time;
+
+				debug->debug("%s %s", "HERE: ", MSG);
+
+				// Spew it
+//				Serial.print(F("Sent "));
+//				Serial.print(start_time);
+//				Serial.print(F(", Got response "));
+//				Serial.print(got_time);
+//				Serial.print(F(", Round-trip delay "));
+//				Serial.print(end_time-start_time);
+//				Serial.println(F(" microseconds"));
+			}
+
+			// Try again 1s later
+		}
+		HAL_Delay(1000);
+
+
+
+		/****************** Pong Back Role ***************************/
+
+		if ( role == 0 )
+		{
+			debug->debug("%s", "PONG BACK");
+			unsigned long got_time;
+
+			if( radio->available()){
+				// Variable for the received timestamp
+				while (radio->available()) {                                   // While there is data ready
 //					radio->read( &got_time, sizeof(unsigned long) );             // Get the payload
-//					HAL_Delay(1);
-//				}
-//
-//				radio->stopListening();                                        // First, stop listening so we can talk
+					radio->read( MSG, sizeof(MSG) );             // Get the payload
+					HAL_Delay(1);
+				}
+
+				debug->debug("Got msg: %s", MSG);
+				copy_data(MSG, "RETR", sizeof(MSG));
+				radio->stopListening();                                        // First, stop listening so we can talk
+				radio->write(MSG, sizeof(MSG) );              // Send the final one back.
 //				radio->write( &got_time, sizeof(unsigned long) );              // Send the final one back.
-//				radio->startListening();                                       // Now, resume listening so we catch the next packets.
-////				Serial.print(F("Sent response "));
-////				Serial.println(got_time);
-//			}
-//		}
+				radio->startListening();                                       // Now, resume listening so we catch the next packets.
+				debug->debug("%s", "Sent response ");
+				debug->debug("Got time: %d", got_time);
+//				Serial.print(F("Sent response "));
+//				Serial.println(got_time);
+			}
+		}
 
 
 
