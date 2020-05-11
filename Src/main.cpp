@@ -29,7 +29,10 @@
 #include "STM32Syscalls.h"
 #include "SPIStm32f103.h"
 #include "STM32Syscalls.h"
+#include "Mesh.h"
 #include "Debug.h"
+
+#include <stdlib.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -54,6 +57,7 @@
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim1;
 UART_HandleTypeDef huart2;
+ADC_HandleTypeDef hadc1;
 
 /* USER CODE BEGIN PV */
 
@@ -65,6 +69,7 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_ADC1_Init(void);
 
 /* USER CODE BEGIN PFP */
 /* USER CODE BEGIN PFP */
@@ -87,6 +92,7 @@ syscalls::SyscallsInterface *mesh_syscalls;
 spi::SPIInterface *mesh_spi;
 network::RF24 *radio;
 debugger::Debug *debug;
+mesh::Mesh *meshNetwork;
 
 /****************** User Config ***************************/
 /***      Set this radio as radio number 0 or 1         ***/
@@ -101,8 +107,14 @@ uint8_t addresses[][6] = {"1Node","2Node"};
 bool role = radioNumber;
 
 
+#define TEMP_SENSOR_AVG_SLOPE_MV_PER_CELSIUS                        2.5f
+#define TEMP_SENSOR_VOLTAGE_MV_AT_25                                760.0f
+#define ADC_REFERENCE_VOLTAGE_MV                                    1210.0f
+#define ADC_MAX_OUTPUT_VALUE                                        4095.0f
+
 int main(void)
 {
+
 	/* USER CODE BEGIN 1 */
 
 	/* USER CODE END 1 */
@@ -128,6 +140,7 @@ int main(void)
 	MX_SPI1_Init();
 	MX_TIM1_Init();
 	MX_USART2_UART_Init();
+	MX_ADC1_Init();
 
 
 
@@ -154,7 +167,7 @@ int main(void)
 	mesh_gpio = new gpio::GPIOStm32f103();
 	mesh_gpio->init_pins(&pins);
 	//
-	mesh_syscalls = new syscalls::STM32Syscalls(&htim1);
+	mesh_syscalls = new syscalls::STM32Syscalls(&htim1, &hadc1);
 	mesh_syscalls->set_cpu_speed(syscalls::SPEED_72MHZ);
 	mesh_syscalls->init();
 
@@ -185,103 +198,151 @@ int main(void)
 	}
 
 	char MSG[5];
+	copy_data(MSG, "HEJ", 3);
+
+
+	uint32_t adc1, adc2, adc3, sensorValue;
+	float temperature;
+
+
+	int test = 0;
+
+	struct net_address address;
+	mem_clr(&address, sizeof(address));
+//	nethelper::NetHelper::generate_temporary_address(&address);
+
+	/* Make sure to test the randomizer */
+
+	float randomness ;
+	float V25 = 1.43;
+	float average_slope= 4.3;
+	uint64_t random_val;
 	while (1)
 	{
 		HAL_Delay(1000);
 		HAL_GPIO_TogglePin(BLINKY_LED_GPIO_Port, BLINKY_LED_Pin);
+		char inten[10];
 
-		if(role)
-			debug->debug("%s", "STARTING CLIENT");
-		else
-			debug->debug("%s", "STARTING SERVER");
+		HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1, 1000);
+		adc3 = HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
 
+		randomness = ((V25 * adc3) / average_slope) * 100000;
+		random_val = (uint32_t) randomness;
+		random_val = random_val << 32;
 
-
-
-		/****************** Ping Out Role ***************************/
-		if (role == 1)  {
-			debug->debug("%s", "PING OUT");
-
-			radio->stopListening();                                    // First, stop listening so we can talk.
-
-
-			debug->debug("%s", "Now sending.");
-
-			unsigned long start_time = 123;                             // Take the time, and send it.  This will block until complete
-			copy_data(MSG, "SEND", sizeof(MSG));
-//			if (!radio->write( &start_time, sizeof(unsigned long) )){
-			if (!radio->write(MSG, sizeof(MSG))){
-				debug->debug("%s", "failed.");
-			}
-
-			radio->startListening();                                    // Now, continue listening
-
-			unsigned long started_waiting_at = 0;               // Set up a timeout period, get the current microseconds
-			bool timeout = false;                                   // Set up a variable to indicate if a response was received or not
-
-			while ( ! radio->available() ){                             // While nothing is received
-				if (started_waiting_at > 2000 ){            // If waited longer than 200ms, indicate timeout and exit while loop
-					timeout = true;
-					break;
-				}
-				started_waiting_at++;
-				HAL_Delay(1);
-			}
-
-			if ( timeout ){                                             // Describe the results
-				debug->debug("%s", "Failed, response timed out.");
-			}else{
-				unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
-//				radio->read( &got_time, sizeof(unsigned long) );
-				radio->read(MSG, sizeof(MSG) );
-				unsigned long end_time = 456;
-				int printme = (int)got_time;
-
-				debug->debug("%s %s", "HERE: ", MSG);
-
-				// Spew it
-//				Serial.print(F("Sent "));
-//				Serial.print(start_time);
-//				Serial.print(F(", Got response "));
-//				Serial.print(got_time);
-//				Serial.print(F(", Round-trip delay "));
-//				Serial.print(end_time-start_time);
-//				Serial.println(F(" microseconds"));
-			}
-
-			// Try again 1s later
-		}
+		HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1, 1000);
+		adc3 = HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1);
 		HAL_Delay(1000);
 
+		randomness = ((V25 * adc3) / average_slope) * 100000;
+		random_val |= (uint32_t) randomness;
 
 
-		/****************** Pong Back Role ***************************/
+//	    sensorValue = (int32_t)HAL_ADC_GetValue(&hadc1);
+//	    HAL_ADC_Stop(&hadc1);
+	    sensorValue = adc1 * ADC_REFERENCE_VOLTAGE_MV / ADC_MAX_OUTPUT_VALUE;
+	    temperature = (int32_t)((sensorValue - TEMP_SENSOR_VOLTAGE_MV_AT_25) / TEMP_SENSOR_AVG_SLOPE_MV_PER_CELSIUS + 25);
 
-		if ( role == 0 )
-		{
-			debug->debug("%s", "PONG BACK");
-			unsigned long got_time;
+	    uint32_t hej = address.broadcast;
+		debug->debug("%s32:%s32:%s32:%s32", adc1, hej, (uint32_t)random_val, (uint32_t)randomness);
+		test++;
 
-			if( radio->available()){
-				// Variable for the received timestamp
-				while (radio->available()) {                                   // While there is data ready
-//					radio->read( &got_time, sizeof(unsigned long) );             // Get the payload
-					radio->read( MSG, sizeof(MSG) );             // Get the payload
-					HAL_Delay(1);
-				}
-
-				debug->debug("Got msg: %s", MSG);
-				copy_data(MSG, "RETR", sizeof(MSG));
-				radio->stopListening();                                        // First, stop listening so we can talk
-				radio->write(MSG, sizeof(MSG) );              // Send the final one back.
-//				radio->write( &got_time, sizeof(unsigned long) );              // Send the final one back.
-				radio->startListening();                                       // Now, resume listening so we catch the next packets.
-				debug->debug("%s", "Sent response ");
-				debug->debug("Got time: %d", got_time);
-//				Serial.print(F("Sent response "));
-//				Serial.println(got_time);
-			}
-		}
+//		if(role)
+//			debug->debug("%s", "STARTING CLIENT");
+//		else
+//			debug->debug("%s", "STARTING SERVER");
+//
+//
+//
+//
+//		/****************** Ping Out Role ***************************/
+//		if (role == 1)  {
+//			debug->debug("%s", "PING OUT");
+//
+//			radio->stopListening();                                    // First, stop listening so we can talk.
+//
+//
+//			debug->debug("%s", "Now sending.");
+//
+//			unsigned long start_time = 123;                             // Take the time, and send it.  This will block until complete
+//			copy_data(MSG, "SEND", sizeof(MSG));
+////			if (!radio->write( &start_time, sizeof(unsigned long) )){
+//			if (!radio->write(MSG, sizeof(MSG))){
+//				debug->debug("%s", "failed.");
+//			}
+//
+//			radio->startListening();                                    // Now, continue listening
+//
+//			unsigned long started_waiting_at = 0;               // Set up a timeout period, get the current microseconds
+//			bool timeout = false;                                   // Set up a variable to indicate if a response was received or not
+//
+//			while ( ! radio->available() ){                             // While nothing is received
+//				if (started_waiting_at > 2000 ){            // If waited longer than 200ms, indicate timeout and exit while loop
+//					timeout = true;
+//					break;
+//				}
+//				started_waiting_at++;
+//				HAL_Delay(1);
+//			}
+//
+//			if ( timeout ){                                             // Describe the results
+//				debug->debug("%s", "Failed, response timed out.");
+//			}else{
+//				unsigned long got_time;                                 // Grab the response, compare, and send to debugging spew
+////				radio->read( &got_time, sizeof(unsigned long) );
+//				radio->read(MSG, sizeof(MSG) );
+//				unsigned long end_time = 456;
+//				int printme = (int)got_time;
+//
+//				debug->debug("%s %s", "HERE: ", MSG);
+//
+//				// Spew it
+////				Serial.print(F("Sent "));
+////				Serial.print(start_time);
+////				Serial.print(F(", Got response "));
+////				Serial.print(got_time);
+////				Serial.print(F(", Round-trip delay "));
+////				Serial.print(end_time-start_time);
+////				Serial.println(F(" microseconds"));
+//			}
+//
+//			// Try again 1s later
+//		}
+//		HAL_Delay(1000);
+//
+//
+//
+//		/****************** Pong Back Role ***************************/
+//
+//		if ( role == 0 )
+//		{
+//			debug->debug("%s", "PONG BACK");
+//			unsigned long got_time;
+//
+//			if( radio->available()){
+//				// Variable for the received timestamp
+//				while (radio->available()) {                                   // While there is data ready
+////					radio->read( &got_time, sizeof(unsigned long) );             // Get the payload
+//					radio->read( MSG, sizeof(MSG) );             // Get the payload
+//					HAL_Delay(1);
+//				}
+//
+//				debug->debug("Got msg: %s", MSG);
+//				copy_data(MSG, "RETR", sizeof(MSG));
+//				radio->stopListening();                                        // First, stop listening so we can talk
+//				radio->write(MSG, sizeof(MSG) );              // Send the final one back.
+////				radio->write( &got_time, sizeof(unsigned long) );              // Send the final one back.
+//				radio->startListening();                                       // Now, resume listening so we catch the next packets.
+//				debug->debug("%s", "Sent response ");
+//				debug->debug("Got time: %d", got_time);
+////				Serial.print(F("Sent response "));
+////				Serial.println(got_time);
+//			}
+//		}
 
 
 
@@ -488,6 +549,53 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+	/* USER CODE BEGIN ADC1_Init 0 */
+
+	/* USER CODE END ADC1_Init 0 */
+
+	ADC_ChannelConfTypeDef sConfig = {0};
+
+	/* USER CODE BEGIN ADC1_Init 1 */
+
+	/* USER CODE END ADC1_Init 1 */
+	/** Common config
+	 */
+
+
+	  hadc1.Instance = ADC1;
+	  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+	  hadc1.Init.ContinuousConvMode = DISABLE;
+	  hadc1.Init.DiscontinuousConvMode = DISABLE;
+	  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+	  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+	  hadc1.Init.NbrOfConversion = 1;
+	  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+	  /** Configure Regular Channel
+	  */
+	  sConfig.Channel = ADC_CHANNEL_TEMPSENSOR;
+	  sConfig.Rank = ADC_REGULAR_RANK_1;
+	  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+	  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+	  {
+	    Error_Handler();
+	  }
+	  /* USER CODE BEGIN ADC1_Init 2 */
+
+	  /* USER CODE END ADC1_Init 2 */
 
 }
 
