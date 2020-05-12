@@ -198,7 +198,7 @@ int main(void)
 	}
 
 	char MSG[5];
-	copy_data(MSG, "HEJ", 3);
+	syscalls::SyscallsInterface::copy_data(MSG, "HEJ", 3);
 
 
 	uint32_t adc1, adc2, adc3, sensorValue;
@@ -208,7 +208,7 @@ int main(void)
 	int test = 0;
 
 	struct net_address address;
-	mem_clr(&address, sizeof(address));
+	syscalls::SyscallsInterface::mem_clr(&address, sizeof(address));
 //	nethelper::NetHelper::generate_temporary_address(&address);
 
 	/* Make sure to test the randomizer */
