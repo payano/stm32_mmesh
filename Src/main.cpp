@@ -30,7 +30,7 @@
 #include "SPIStm32f103.h"
 #include "STM32Syscalls.h"
 #include "Mesh.h"
-#include "Debug.h"
+#include "DebugSingleton.h"
 
 #include <stdlib.h>
 
@@ -91,7 +91,7 @@ gpio::GPIOInterface *mesh_gpio;
 syscalls::SyscallsInterface *mesh_syscalls;
 spi::SPIInterface *mesh_spi;
 network::RF24 *radio;
-debugger::Debug *debug;
+debugger::DebugInterface *debug;
 mesh::Mesh *meshNetwork;
 
 /****************** User Config ***************************/
@@ -162,7 +162,8 @@ int main(void)
 	pins.csn_pin = RF24_CSN_Pin;
 
 	mesh_spi = new spi::SPIStm32f103(&hspi1);
-	debug = new debugger::Debug(&huart2);
+	debugger::DebugSingleton::createSTM32Instance(&huart2);
+	debug = debugger::DebugSingleton::getInstance();
 	//
 	mesh_gpio = new gpio::GPIOStm32f103();
 	mesh_gpio->init_pins(&pins);
@@ -248,7 +249,7 @@ int main(void)
 	    temperature = (int32_t)((sensorValue - TEMP_SENSOR_VOLTAGE_MV_AT_25) / TEMP_SENSOR_AVG_SLOPE_MV_PER_CELSIUS + 25);
 
 	    uint32_t hej = address.broadcast;
-		debug->debug("%s32:%s32:%s32:%s32", adc1, hej, (uint32_t)random_val, (uint32_t)randomness);
+//		debug->debug("%s32:%s32:%s32:%s32", adc1, hej, (uint32_t)random_val, (uint32_t)randomness);
 		test++;
 
 //		if(role)
