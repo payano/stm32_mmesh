@@ -21,18 +21,15 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
-//#include "stm32f1xx_hal.h"
 
 #include "DataTypes.h"
-#include "RF24.h"
-#include "GPIOStm32f103.h"
-#include "STM32Syscalls.h"
-#include "SPIStm32f103.h"
+//#include "RF24.h"
+#include "Nrf24.h"
 #include "STM32Syscalls.h"
 #include "Mesh.h"
 #include "DebugSingleton.h"
-
-#include <stdlib.h>
+#include "STM32Debug.h"
+//#include <stdlib.h>
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -87,12 +84,19 @@ static void MX_ADC1_Init(void);
  */
 
 
-gpio::GPIOInterface *mesh_gpio;
+//gpio::GPIOInterface *mesh_gpio;
 syscalls::SyscallsInterface *mesh_syscalls;
-spi::SPIInterface *mesh_spi;
-network::RF24 *radio;
+//spi::SPIInterface *mesh_spi;
+//network::RF24 *radio;
 debugger::DebugInterface *debug;
 mesh::Mesh *meshNetwork;
+network::NetworkInterface *nwInterface;
+
+
+
+
+
+bool server = false;
 
 /****************** User Config ***************************/
 /***      Set this radio as radio number 0 or 1         ***/
@@ -105,12 +109,6 @@ uint8_t addresses[][6] = {"1Node","2Node"};
 
 // Used to control whether this node is sending or receiving
 bool role = radioNumber;
-
-
-#define TEMP_SENSOR_AVG_SLOPE_MV_PER_CELSIUS                        2.5f
-#define TEMP_SENSOR_VOLTAGE_MV_AT_25                                760.0f
-#define ADC_REFERENCE_VOLTAGE_MV                                    1210.0f
-#define ADC_MAX_OUTPUT_VALUE                                        4095.0f
 
 int main(void)
 {
@@ -142,6 +140,12 @@ int main(void)
 	MX_USART2_UART_Init();
 	MX_ADC1_Init();
 
+	mesh_syscalls = new syscalls::STM32Syscalls(&htim1, &hadc1, &hspi1, &huart2);
+	debugger::DebugSingleton::createSTM32Instance(mesh_syscalls);
+	debug = debugger::DebugSingleton::getInstance();
+
+	debug->info("%s", "SYSTEM INIT DONE");
+
 
 
 
@@ -155,58 +159,64 @@ int main(void)
 //		rsp_time = 2;
 //	}
 //
-	struct gpio::gpio_pins pins;
+
+	debug->info("%s", "MESH INIT STARTING");
+
+	struct syscalls::gpio_pins pins;
 	pins.ce_port = RF24_CE_GPIO_Port;
 	pins.ce_pin = RF24_CE_Pin;
 	pins.csn_port = RF24_CSN_GPIO_Port;
 	pins.csn_pin = RF24_CSN_Pin;
 
-	mesh_spi = new spi::SPIStm32f103(&hspi1);
-	debugger::DebugSingleton::createSTM32Instance(&huart2);
-	debug = debugger::DebugSingleton::getInstance();
+//	mesh_spi = new spi::SPIStm32f103(&hspi1);
 	//
-	mesh_gpio = new gpio::GPIOStm32f103();
-	mesh_gpio->init_pins(&pins);
+//	mesh_gpio = new gpio::GPIOStm32f103();
+	mesh_syscalls->gpio_init_pins(&pins);
+//	mesh_gpio->init_pins(&pins);
 	//
-	mesh_syscalls = new syscalls::STM32Syscalls(&htim1, &hadc1);
 	mesh_syscalls->set_cpu_speed(syscalls::SPEED_72MHZ);
 	mesh_syscalls->init();
 
-	radio = new network::RF24(mesh_gpio, mesh_syscalls, mesh_spi);
+	debug->info("%s", "MESH INIT DONE");
 
-	radio->begin();
+
+	debug->info("%s", "RADIO INIT STARTING");
+//	radio = new network::RF24(mesh_gpio, mesh_syscalls, mesh_spi);
+//	radio->begin();
 
 	// Set the PA Level low to prevent power supply related issues since this is a
 	// getting_started sketch, and the likelihood of close proximity of the devices. RF24_PA_MAX is default.
-	radio->setPALevel(network::RF24_PA_LOW);
+//	radio->setPALevel(network::RF24_PA_LOW);
 
 	// Open a writing and reading pipe on each radio, with opposite addresses
-	if(radioNumber){
-		radio->openWritingPipe(addresses[1]);
-		radio->openReadingPipe(1,addresses[0]);
-	}else{
-		radio->openWritingPipe(addresses[0]);
-		radio->openReadingPipe(1,addresses[1]);
-	}
+//	if(radioNumber){
+//		radio->openWritingPipe(addresses[1]);
+//		radio->openReadingPipe(1,addresses[0]);
+//	}else{
+//		radio->openWritingPipe(addresses[0]);
+//		radio->openReadingPipe(1,addresses[1]);
+//	}
+//
+//	// Start the radio listening for data
+//	radio->startListening();
+//
+//
+//	while(!radio->isChipConnected())
+//	{
+//		HAL_Delay(1);
+//	}
+//
 
-	// Start the radio listening for data
-	radio->startListening();
+	nwInterface = new network::Nrf24(mesh_syscalls);
+	meshNetwork = new mesh::Mesh(nwInterface,mesh_syscalls);
 
 
-	while(!radio->isChipConnected())
-	{
-		HAL_Delay(1);
-	}
+	debug->info("%s", "RADIO INIT DONE");
 
 	char MSG[5];
 	syscalls::SyscallsInterface::copy_data(MSG, "HEJ", 3);
 
 
-	uint32_t adc1, adc2, adc3, sensorValue;
-	float temperature;
-
-
-	int test = 0;
 
 	struct net_address address;
 	syscalls::SyscallsInterface::mem_clr(&address, sizeof(address));
@@ -214,43 +224,26 @@ int main(void)
 
 	/* Make sure to test the randomizer */
 
-	float randomness ;
-	float V25 = 1.43;
-	float average_slope= 4.3;
-	uint64_t random_val;
+	debug->info("%s", "STARTING MAIN");
+
+	if(server) {
+		debug->info("%s", "STARTING SERVER");
+		meshNetwork->setMaster();
+	}
+
 	while (1)
 	{
-		HAL_Delay(1000);
-		HAL_GPIO_TogglePin(BLINKY_LED_GPIO_Port, BLINKY_LED_Pin);
-		char inten[10];
 
-		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 1000);
-		adc3 = HAL_ADC_GetValue(&hadc1);
-		HAL_ADC_Stop(&hadc1);
-
-		randomness = ((V25 * adc3) / average_slope) * 100000;
-		random_val = (uint32_t) randomness;
-		random_val = random_val << 32;
-
-		HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 1000);
-		adc3 = HAL_ADC_GetValue(&hadc1);
-		HAL_ADC_Stop(&hadc1);
-		HAL_Delay(1000);
-
-		randomness = ((V25 * adc3) / average_slope) * 100000;
-		random_val |= (uint32_t) randomness;
-
-
-//	    sensorValue = (int32_t)HAL_ADC_GetValue(&hadc1);
-//	    HAL_ADC_Stop(&hadc1);
-	    sensorValue = adc1 * ADC_REFERENCE_VOLTAGE_MV / ADC_MAX_OUTPUT_VALUE;
-	    temperature = (int32_t)((sensorValue - TEMP_SENSOR_VOLTAGE_MV_AT_25) / TEMP_SENSOR_AVG_SLOPE_MV_PER_CELSIUS + 25);
-
-	    uint32_t hej = address.broadcast;
-//		debug->debug("%s32:%s32:%s32:%s32", adc1, hej, (uint32_t)random_val, (uint32_t)randomness);
-		test++;
+		/* Doing mesh */
+		meshNetwork->run();
+		mesh_syscalls->msleep(200);
+		if(server)
+			debug->info("%s", "Running master");
+		else
+			debug->info("%s", "Running client");
+//		HAL_Delay(1000);
+//		HAL_GPIO_TogglePin(BLINKY_LED_GPIO_Port, BLINKY_LED_Pin);
+//		char inten[10];
 
 //		if(role)
 //			debug->debug("%s", "STARTING CLIENT");
@@ -598,6 +591,14 @@ static void MX_ADC1_Init(void)
 
 	  /* USER CODE END ADC1_Init 2 */
 
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin){
+	debug->debug("%s, %s, %d", __FILE__, __FUNCTION__, __LINE__);
+	if(GPIO_Pin == RF24_IRQ_Pin){
+		debug->debug("%s, %s, %d", __FILE__, __FUNCTION__, __LINE__);
+		nwInterface->irq();
+	}
 }
 
 /* USER CODE BEGIN 4 */
